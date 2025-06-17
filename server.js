@@ -5,32 +5,48 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcrypt');
 const cors = require('cors');
 const User = require('./models/User');
+require('dotenv').config(); // Enables .env usage locally
 
 const app = express();
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// MongoDB Connection (cleaned up)
-mongoose.connect('mongodb://127.0.0.1:27017/loginApp')
+// MongoDB Connection
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/loginApp', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
   .then(() => console.log('MongoDB Connected'))
-  .catch(err => console.log(err));
+  .catch(err => console.log('MongoDB Connection Error:', err));
+
+// Health Check
+app.get('/', (req, res) => {
+  res.send('API is working!');
+});
 
 // Register API
 app.post('/register', async (req, res) => {
   const { username, password } = req.body;
 
   try {
+    const existingUser = await User.findOne({ username });
+    if (existingUser) {
+      return res.status(400).json({ error: 'User already exists' });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const user = new User({ username, password: hashedPassword });
     await user.save();
     res.status(201).json({ message: 'User Registered' });
   } catch (err) {
-    res.status(400).json({ error: 'User already exists or invalid data' });
+    console.error(err);
+    res.status(500).json({ error: 'Registration failed' });
   }
 });
+
 
 // Login API
 app.post('/login', async (req, res) => {
